@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "vulcan": {
+      "command": "C:\\Users\\stefa\\Documents\\Intel8080\\mcp\\.venv\\Scripts\\python.exe",
+      "args": ["C:\\Users\\stefa\\Documents\\Intel8080\\mcp\\server.py"]
+    }
+  }
+}
