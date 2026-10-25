@@ -179,7 +179,7 @@ class Runtime:
         return self.job is not None and not self.job["task"].done()
 
     async def check_all(self, package=False):
-        """Launch the existing complete suite (and with package=True, build.ps1 -PackageJar) without blocking MCP."""
+        """Launch the existing complete suite (and with package=True, qa/build.ps1) without blocking MCP."""
         if self.checks_active():
             return response({"error": "A check job is already active."})
         idle = await self.request("idle")
@@ -187,10 +187,10 @@ class Runtime:
             return idle
         shell = shutil.which("pwsh") or shutil.which("powershell")
         if not shell:
-            return response({"error": "PowerShell is required by Vulcan's existing build.ps1 suite."})
+            return response({"error": "PowerShell is required by Vulcan's build scripts."})
         kind = "package" if package else "checks"
-        process = await asyncio.create_subprocess_exec(shell, "-NoProfile", "-File", str(WORKSPACE / ("vulcanide/build.ps1" if package else "qa/run-all.ps1")),
-            *(["-PackageJar"] if package else []),
+        process = await asyncio.create_subprocess_exec(shell, "-NoProfile", "-File", str(WORKSPACE / ("qa/build.ps1" if package else "qa/run-all.ps1")),
+            
             cwd=ROOT, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, **process_options())
         self.job = {"id": kind + "-" + uuid.uuid4().hex, "kind": kind, "process": process, "output": bytearray(),
             "total": 0, "stop_reason": "", "skipped": [], "state": "running"}
@@ -233,9 +233,9 @@ class Runtime:
             "console": delta.decode("utf-8", errors="replace"),
             "cursor": max(cursor, first) + len(delta), "console_total": job["total"], "dropped_bytes": max(0, first - cursor),
             "exit_code": job["process"].returncode, "full_suite_completed": job["state"] == "completed",
-            "skipped": job["skipped"], "suite_policy": "Existing build.ps1 stops at the first failing check."}
+            "skipped": job["skipped"], "suite_policy": "The suite runs every check and reports each result."}
         if job["kind"] == "package" and job["state"] == "completed":
-            data["jar"] = ", ".join(str(path) for path in sorted((WORKSPACE / "vulcanide" / "build" / "latest").glob("VulcanIDE *.jar")))
+            data["jar"] = ", ".join(str(path) for path in sorted((WORKSPACE / "vulcanide" / "builds").glob("VulcanIDE *.jar")))
         return response(data)
 
 
@@ -311,14 +311,14 @@ async def stop(id: str) -> CallToolResult:
 
 @mcp.tool()
 async def check_all() -> CallToolResult:
-    """Start Vulcan's full build.ps1 regression suite; returns a job ID for observe/stop, with a 15-minute limit."""
+    """Start Vulcan's full regression suite; returns a job ID for observe/stop, with a 15-minute limit."""
     async with runtime.operation:
         return await runtime.check_all()
 
 
 @mcp.tool()
 async def package() -> CallToolResult:
-    """Run build.ps1 -PackageJar: the full suite, then builds/latest/VulcanIDE <version>.jar replacing earlier JARs.
+    """Run qa/build.ps1: rebuilds intel8080, c8080 and vulcanide/builds/VulcanIDE <version>.jar, replacing earlier JARs.
 
     Returns a job ID for observe/stop; a completed job reports the JAR path. Close running Vulcan JARs first.
     """
@@ -328,4 +328,6 @@ async def package() -> CallToolResult:
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
+
+
 
